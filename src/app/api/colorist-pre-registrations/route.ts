@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import postgres from "postgres";
 
 const SUPABASE_URL =
   process.env.SUPABASE_URL ??
@@ -9,6 +10,8 @@ const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ??
   process.env.SUPABASE_ANON_KEY ??
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+let postgresClient: ReturnType<typeof postgres> | null = null;
 
 type ContactType = "instagram" | "phone";
 
@@ -40,6 +43,21 @@ type SurveyPayload = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function getPostgresClient() {
+  const databaseUrl = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+  if (!databaseUrl) return null;
+
+  if (!postgresClient) {
+    postgresClient = postgres(databaseUrl, {
+      max: 1,
+      prepare: false,
+      ssl: "require",
+    });
+  }
+
+  return postgresClient;
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -198,16 +216,6 @@ function getSurveyValidationError(payload: SurveyPayload) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!SUPABASE_KEY) {
-    return NextResponse.json(
-      {
-        error:
-          "Supabase 키가 설정되지 않았어요. SUPABASE_ANON_KEY 또는 SUPABASE_SERVICE_ROLE_KEY를 .env.local에 넣어주세요.",
-      },
-      { status: 500 },
-    );
-  }
-
   const body = (await request.json().catch(() => null)) as unknown;
   const payload = parsePayload(body);
 
@@ -223,6 +231,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
+  const sql = getPostgresClient();
   const insertPayload = {
     naver_booking_link: payload.naverBookingLink,
     selected_services: payload.selectedServices,
@@ -236,6 +245,50 @@ export async function POST(request: NextRequest) {
     consent: payload.consent,
     source: "hongdae_designer_pre_registration",
   };
+
+  if (sql) {
+    const rows = await sql<{ id: string }[]>`
+      insert into public.colorist_pre_registrations (
+        naver_booking_link,
+        selected_services,
+        contact_type,
+        contact_value,
+        uploaded_files,
+        uploaded_file_count,
+        instagram_portfolio_id,
+        desired_customer_types,
+        main_need,
+        consent,
+        source
+      )
+      values (
+        ${insertPayload.naver_booking_link},
+        ${insertPayload.selected_services}::text[],
+        ${insertPayload.contact_type},
+        ${insertPayload.contact_value},
+        ${sql.json(insertPayload.uploaded_files)}::jsonb,
+        ${insertPayload.uploaded_file_count},
+        ${insertPayload.instagram_portfolio_id},
+        ${insertPayload.desired_customer_types}::text[],
+        ${insertPayload.main_need},
+        ${insertPayload.consent},
+        ${insertPayload.source}
+      )
+      returning id
+    `;
+
+    return NextResponse.json({ ok: true, id: rows[0]?.id ?? null });
+  }
+
+  if (!SUPABASE_KEY) {
+    return NextResponse.json(
+      {
+        error:
+          "Supabase 키 또는 DATABASE_URL이 설정되지 않았어요. DATABASE_URL 또는 SUPABASE_ANON_KEY를 설정해주세요.",
+      },
+      { status: 500 },
+    );
+  }
 
   const supabaseResponse = await fetch(
     `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/colorist_pre_registrations?select=id`,
@@ -272,16 +325,6 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!SUPABASE_KEY) {
-    return NextResponse.json(
-      {
-        error:
-          "Supabase 키가 설정되지 않았어요. SUPABASE_ANON_KEY 또는 SUPABASE_SERVICE_ROLE_KEY를 .env.local에 넣어주세요.",
-      },
-      { status: 500 },
-    );
-  }
-
   const body = (await request.json().catch(() => null)) as unknown;
   const payload = parseSurveyPayload(body);
 
@@ -297,12 +340,37 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
+  const sql = getPostgresClient();
   const surveyPayload = {
     designer_pain_point: payload.designerPainPoint,
     customer_source: payload.customerSource,
     subscription_intent: payload.subscriptionIntent,
     survey_submitted_at: new Date().toISOString(),
   };
+
+  if (sql) {
+    await sql`
+      update public.colorist_pre_registrations
+      set
+        designer_pain_point = ${surveyPayload.designer_pain_point},
+        customer_source = ${surveyPayload.customer_source},
+        subscription_intent = ${surveyPayload.subscription_intent},
+        survey_submitted_at = ${surveyPayload.survey_submitted_at}
+      where id = ${payload.id}::uuid
+    `;
+
+    return NextResponse.json({ ok: true });
+  }
+
+  if (!SUPABASE_KEY) {
+    return NextResponse.json(
+      {
+        error:
+          "Supabase 키 또는 DATABASE_URL이 설정되지 않았어요. DATABASE_URL 또는 SUPABASE_ANON_KEY를 설정해주세요.",
+      },
+      { status: 500 },
+    );
+  }
 
   const supabaseResponse = await fetch(
     `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/colorist_pre_registrations?id=eq.${encodeURIComponent(payload.id)}`,
