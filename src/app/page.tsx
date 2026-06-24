@@ -1454,6 +1454,7 @@ function CompleteStep({
         onOpen={() => setIsSurveyOpen(true)}
         onConfirm={onConfirm}
       />
+      {isSurveySubmitted && <SurveySavedToast />}
       {isSurveyOpen && (
         <SurveySheet
           answers={surveyAnswers}
@@ -1480,16 +1481,7 @@ function SurveyPromptOverlay({
 }) {
   return (
     <div className="fixed bottom-0 left-1/2 z-30 grid w-full max-w-[430px] -translate-x-1/2 gap-3 bg-white px-6 pb-6 pt-3 shadow-[0_-18px_40px_rgba(255,255,255,0.94)] sm:bottom-6 sm:rounded-b-[28px]">
-      {isSubmitted ? (
-        <div className="rounded-2xl border border-[#ffd8bf] bg-[#fff8f0] px-5 py-3 text-center">
-          <p className="text-sm font-black text-[#111827]">
-            설문이 저장됐어요.
-          </p>
-          <p className="mt-1 text-xs font-semibold text-[#838b96]">
-            답변은 프로필 준비에 함께 참고할게요.
-          </p>
-        </div>
-      ) : (
+      {!isSubmitted && (
         <button
           type="button"
           onClick={onOpen}
@@ -1505,6 +1497,21 @@ function SurveyPromptOverlay({
       >
         확인
       </button>
+    </div>
+  );
+}
+
+function SurveySavedToast() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed left-1/2 top-1/2 z-40 w-[calc(100%-48px)] max-w-[330px] -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-[#ffd8bf] bg-white/96 px-6 py-5 text-center shadow-[0_24px_70px_rgba(15,23,42,0.22)] backdrop-blur-md"
+    >
+      <p className="text-base font-black text-[#111827]">설문이 저장됐어요.</p>
+      <p className="mt-2 text-sm font-semibold leading-5 text-[#838b96]">
+        답변은 프로필 준비에 함께 참고할게요.
+      </p>
     </div>
   );
 }
