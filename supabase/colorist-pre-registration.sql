@@ -18,9 +18,9 @@ create table if not exists colorist_pre_registration.registrations (
   desired_customer_types text[] not null default '{}'::text[],
   main_need text,
   consent boolean not null default false,
-  designer_pain_point text,
-  customer_source text,
-  subscription_intent text,
+  designer_pain_point text[] not null default '{}'::text[],
+  customer_source text[] not null default '{}'::text[],
+  subscription_intent text[] not null default '{}'::text[],
   survey_submitted_at timestamptz,
   source text not null default 'hongdae_designer_pre_registration',
   status text not null default 'submitted',
@@ -38,10 +38,79 @@ create table if not exists colorist_pre_registration.registrations (
 );
 
 alter table colorist_pre_registration.registrations
-  add column if not exists designer_pain_point text,
-  add column if not exists customer_source text,
-  add column if not exists subscription_intent text,
+  add column if not exists designer_pain_point text[] not null default '{}'::text[],
+  add column if not exists customer_source text[] not null default '{}'::text[],
+  add column if not exists subscription_intent text[] not null default '{}'::text[],
   add column if not exists survey_submitted_at timestamptz;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'colorist_pre_registration'
+      and table_name = 'registrations'
+      and column_name = 'designer_pain_point'
+      and data_type = 'text'
+  ) then
+    alter table colorist_pre_registration.registrations
+      alter column designer_pain_point type text[]
+      using case
+        when designer_pain_point is null or btrim(designer_pain_point) = ''
+          then '{}'::text[]
+        else array[designer_pain_point]
+      end;
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'colorist_pre_registration'
+      and table_name = 'registrations'
+      and column_name = 'customer_source'
+      and data_type = 'text'
+  ) then
+    alter table colorist_pre_registration.registrations
+      alter column customer_source type text[]
+      using case
+        when customer_source is null or btrim(customer_source) = ''
+          then '{}'::text[]
+        else array[customer_source]
+      end;
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'colorist_pre_registration'
+      and table_name = 'registrations'
+      and column_name = 'subscription_intent'
+      and data_type = 'text'
+  ) then
+    alter table colorist_pre_registration.registrations
+      alter column subscription_intent type text[]
+      using case
+        when subscription_intent is null or btrim(subscription_intent) = ''
+          then '{}'::text[]
+        else array[subscription_intent]
+      end;
+  end if;
+end
+$$;
+
+update colorist_pre_registration.registrations
+set
+  designer_pain_point = coalesce(designer_pain_point, '{}'::text[]),
+  customer_source = coalesce(customer_source, '{}'::text[]),
+  subscription_intent = coalesce(subscription_intent, '{}'::text[]);
+
+alter table colorist_pre_registration.registrations
+  alter column designer_pain_point set default '{}'::text[],
+  alter column designer_pain_point set not null,
+  alter column customer_source set default '{}'::text[],
+  alter column customer_source set not null,
+  alter column subscription_intent set default '{}'::text[],
+  alter column subscription_intent set not null;
 
 do $$
 begin
@@ -80,9 +149,21 @@ begin
         desired_customer_types,
         main_need,
         consent,
-        designer_pain_point,
-        customer_source,
-        subscription_intent,
+        case
+          when designer_pain_point is null or btrim(designer_pain_point) = ''
+            then '{}'::text[]
+          else array[designer_pain_point]
+        end,
+        case
+          when customer_source is null or btrim(customer_source) = ''
+            then '{}'::text[]
+          else array[customer_source]
+        end,
+        case
+          when subscription_intent is null or btrim(subscription_intent) = ''
+            then '{}'::text[]
+          else array[subscription_intent]
+        end,
         survey_submitted_at,
         source,
         status,

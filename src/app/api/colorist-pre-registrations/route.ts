@@ -39,9 +39,9 @@ type RegistrationPayload = {
 
 type SurveyPayload = {
   id: string;
-  designerPainPoint: string;
-  customerSource: string;
-  subscriptionIntent: string;
+  designerPainPoint: string[];
+  customerSource: string[];
+  subscriptionIntent: string[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -196,24 +196,29 @@ function parseSurveyPayload(body: unknown): SurveyPayload | null {
 
   return {
     id: typeof body.id === "string" ? body.id.trim() : "",
-    designerPainPoint:
-      typeof body.designerPainPoint === "string"
-        ? body.designerPainPoint.trim()
-        : "",
-    customerSource:
-      typeof body.customerSource === "string" ? body.customerSource.trim() : "",
-    subscriptionIntent:
-      typeof body.subscriptionIntent === "string"
-        ? body.subscriptionIntent.trim()
-        : "",
+    designerPainPoint: isStringArray(body.designerPainPoint)
+      ? body.designerPainPoint.map((item) => item.trim())
+      : [],
+    customerSource: isStringArray(body.customerSource)
+      ? body.customerSource.map((item) => item.trim())
+      : [],
+    subscriptionIntent: isStringArray(body.subscriptionIntent)
+      ? body.subscriptionIntent.map((item) => item.trim())
+      : [],
   };
 }
 
 function getSurveyValidationError(payload: SurveyPayload) {
   if (!payload.id) return "등록 정보를 찾을 수 없어요.";
-  if (!payload.designerPainPoint) return "가장 힘든 점을 선택해주세요.";
-  if (!payload.customerSource) return "현재 고객 유입 경로를 선택해주세요.";
-  if (!payload.subscriptionIntent) return "월 구독 의향을 선택해주세요.";
+  if (payload.designerPainPoint.length < 1) {
+    return "가장 힘든 점을 선택해주세요.";
+  }
+  if (payload.customerSource.length < 1) {
+    return "현재 고객 유입 경로를 선택해주세요.";
+  }
+  if (payload.subscriptionIntent.length < 1) {
+    return "월 구독 의향을 선택해주세요.";
+  }
 
   return null;
 }
@@ -357,9 +362,9 @@ export async function PATCH(request: NextRequest) {
     await sql`
       update colorist_pre_registration.registrations
       set
-        designer_pain_point = ${surveyPayload.designer_pain_point},
-        customer_source = ${surveyPayload.customer_source},
-        subscription_intent = ${surveyPayload.subscription_intent},
+        designer_pain_point = ${surveyPayload.designer_pain_point}::text[],
+        customer_source = ${surveyPayload.customer_source}::text[],
+        subscription_intent = ${surveyPayload.subscription_intent}::text[],
         survey_submitted_at = ${surveyPayload.survey_submitted_at}
       where id = ${payload.id}::uuid
     `;

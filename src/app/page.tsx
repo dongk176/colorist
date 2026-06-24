@@ -15,9 +15,9 @@ type ServiceOption = {
 };
 
 type SurveyAnswers = {
-  designerPainPoint: string;
-  customerSource: string;
-  subscriptionIntent: string;
+  designerPainPoint: string[];
+  customerSource: string[];
+  subscriptionIntent: string[];
 };
 
 const SERVICES = [
@@ -485,16 +485,6 @@ function RegistrationFlow() {
               onPrevious={() => goToPage("booking")}
               onNext={completeRegistration}
             />
-          )}
-
-          {step === 6 && (
-            <button
-              type="button"
-              onClick={() => goToPage("start")}
-              className="mt-6 h-14 w-full rounded-2xl border border-[#dfe3e8] bg-white px-5 text-base font-bold text-[#505966] transition hover:bg-[#f5f6f8]"
-            >
-              확인
-            </button>
           )}
         </div>
       </section>
@@ -1369,18 +1359,18 @@ function CompleteStep({
 }) {
   const [isSurveyOpen, setIsSurveyOpen] = useState(false);
   const [surveyAnswers, setSurveyAnswers] = useState<SurveyAnswers>({
-    designerPainPoint: "",
-    customerSource: "",
-    subscriptionIntent: "",
+    designerPainPoint: [],
+    customerSource: [],
+    subscriptionIntent: [],
   });
   const [isSurveySubmitting, setIsSurveySubmitting] = useState(false);
   const [surveyError, setSurveyError] = useState("");
   const [isSurveySubmitted, setIsSurveySubmitted] = useState(false);
 
   const canSubmitSurvey =
-    Boolean(surveyAnswers.designerPainPoint) &&
-    Boolean(surveyAnswers.customerSource) &&
-    Boolean(surveyAnswers.subscriptionIntent) &&
+    surveyAnswers.designerPainPoint.length > 0 &&
+    surveyAnswers.customerSource.length > 0 &&
+    surveyAnswers.subscriptionIntent.length > 0 &&
     !isSurveySubmitting;
 
   const submitSurvey = async () => {
@@ -1425,8 +1415,19 @@ function CompleteStep({
     }
   };
 
+  const toggleSurveyAnswer = (key: keyof SurveyAnswers, value: string) => {
+    setSurveyAnswers((current) => {
+      const selectedValues = current[key];
+      const nextValues = selectedValues.includes(value)
+        ? selectedValues.filter((item) => item !== value)
+        : [...selectedValues, value];
+
+      return { ...current, [key]: nextValues };
+    });
+  };
+
   return (
-    <div className="flex flex-1 flex-col justify-center pb-12 text-center">
+    <div className="flex flex-1 flex-col justify-center pb-44 text-center">
       <div className="mx-auto mb-7 flex h-16 w-16 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] text-2xl font-bold text-white">
         ✓
       </div>
@@ -1448,12 +1449,10 @@ function CompleteStep({
           {contactType === "instagram" ? "인스타 DM" : "문자"} 안내 예정
         </p>
       </div>
-      <button type="button" onClick={onConfirm} className="sr-only">
-        확인
-      </button>
       <SurveyPromptOverlay
         isSubmitted={isSurveySubmitted}
         onOpen={() => setIsSurveyOpen(true)}
+        onConfirm={onConfirm}
       />
       {isSurveyOpen && (
         <SurveySheet
@@ -1461,9 +1460,7 @@ function CompleteStep({
           canSubmit={canSubmitSurvey}
           error={surveyError}
           isSubmitting={isSurveySubmitting}
-          onAnswerChange={(key, value) =>
-            setSurveyAnswers((current) => ({ ...current, [key]: value }))
-          }
+          onAnswerToggle={toggleSurveyAnswer}
           onClose={() => setIsSurveyOpen(false)}
           onSubmit={submitSurvey}
         />
@@ -1474,15 +1471,17 @@ function CompleteStep({
 
 function SurveyPromptOverlay({
   isSubmitted,
+  onConfirm,
   onOpen,
 }: {
   isSubmitted: boolean;
+  onConfirm: () => void;
   onOpen: () => void;
 }) {
   return (
-    <div className="fixed bottom-0 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 px-6 pb-6">
+    <div className="fixed bottom-0 left-1/2 z-30 grid w-full max-w-[430px] -translate-x-1/2 gap-3 bg-white px-6 pb-6 pt-3 shadow-[0_-18px_40px_rgba(255,255,255,0.94)] sm:bottom-6 sm:rounded-b-[28px]">
       {isSubmitted ? (
-        <div className="rounded-[24px] border border-[#ffd8bf] bg-white px-5 py-4 text-center shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
+        <div className="rounded-2xl border border-[#ffd8bf] bg-[#fff8f0] px-5 py-3 text-center">
           <p className="text-sm font-black text-[#111827]">
             설문이 저장됐어요.
           </p>
@@ -1494,11 +1493,18 @@ function SurveyPromptOverlay({
         <button
           type="button"
           onClick={onOpen}
-          className="h-16 w-full rounded-[24px] bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] px-5 text-base font-black text-white shadow-[0_18px_42px_rgba(255,75,110,0.30)] transition hover:brightness-110"
+          className="h-14 w-full rounded-2xl bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] px-5 text-base font-black text-white shadow-[0_18px_42px_rgba(255,75,110,0.24)] transition hover:brightness-110"
         >
           10초 설문 참여하기
         </button>
       )}
+      <button
+        type="button"
+        onClick={onConfirm}
+        className="h-14 w-full rounded-2xl border border-[#dfe3e8] bg-white px-5 text-base font-bold text-[#505966] transition hover:bg-[#f5f6f8]"
+      >
+        확인
+      </button>
     </div>
   );
 }
@@ -1508,7 +1514,7 @@ function SurveySheet({
   canSubmit,
   error,
   isSubmitting,
-  onAnswerChange,
+  onAnswerToggle,
   onClose,
   onSubmit,
 }: {
@@ -1516,7 +1522,7 @@ function SurveySheet({
   canSubmit: boolean;
   error: string;
   isSubmitting: boolean;
-  onAnswerChange: (key: keyof SurveyAnswers, value: string) => void;
+  onAnswerToggle: (key: keyof SurveyAnswers, value: string) => void;
   onClose: () => void;
   onSubmit: () => void;
 }) {
@@ -1555,19 +1561,19 @@ function SurveySheet({
             title="디자이너 생활 중 가장 힘든 점은 무엇인가요?"
             options={DESIGNER_PAIN_POINTS}
             value={answers.designerPainPoint}
-            onChange={(value) => onAnswerChange("designerPainPoint", value)}
+            onToggle={(value) => onAnswerToggle("designerPainPoint", value)}
           />
           <SurveyQuestion
             title="현재 고객은 주로 어디서 오나요?"
             options={CUSTOMER_SOURCES}
             value={answers.customerSource}
-            onChange={(value) => onAnswerChange("customerSource", value)}
+            onToggle={(value) => onAnswerToggle("customerSource", value)}
           />
           <SurveyQuestion
             title="원하는 고객에게 더 잘 노출된다면, 월 구독을 이용할 의향이 있나요?"
             options={SUBSCRIPTION_INTENTS}
             value={answers.subscriptionIntent}
-            onChange={(value) => onAnswerChange("subscriptionIntent", value)}
+            onToggle={(value) => onAnswerToggle("subscriptionIntent", value)}
           />
 
           {error && (
@@ -1601,12 +1607,12 @@ function SurveyQuestion({
   title,
   options,
   value,
-  onChange,
+  onToggle,
 }: {
   title: string;
   options: string[];
-  value: string;
-  onChange: (value: string) => void;
+  value: string[];
+  onToggle: (value: string) => void;
 }) {
   return (
     <section className="mb-7">
@@ -1615,20 +1621,29 @@ function SurveyQuestion({
       </h2>
       <div className="mt-3 grid gap-2">
         {options.map((option) => {
-          const isSelected = value === option;
+          const isSelected = value.includes(option);
 
           return (
             <button
               key={option}
               type="button"
-              onClick={() => onChange(option)}
-              className={`min-h-11 rounded-2xl border px-4 py-3 text-left text-sm font-bold leading-5 transition ${
+              onClick={() => onToggle(option)}
+              className={`flex min-h-11 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-bold leading-5 transition ${
                 isSelected
                   ? "border-[#ff6a3d] bg-[#fff1ea] text-[#111827] shadow-[0_8px_22px_rgba(255,75,110,0.12)]"
                   : "border-[#e1e5ea] bg-white text-[#505966] hover:border-[#ffb29a]"
               }`}
             >
-              {option}
+              <span>{option}</span>
+              <span
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${
+                  isSelected
+                    ? "border-[#ff6a3d] bg-[#ff6a3d] text-white"
+                    : "border-[#d8dde4] text-transparent"
+                }`}
+              >
+                ✓
+              </span>
             </button>
           );
         })}
