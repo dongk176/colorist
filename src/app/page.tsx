@@ -618,7 +618,7 @@ function DesignerMapVisual() {
       <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white to-white/0" />
 
       <FloatingColoristCard
-        className="left-[32%] top-[7%]"
+        className="left-[34%] top-[7%]"
         name="하린"
         score="4.9"
         image="/designer-profiles/harin.png"
@@ -626,7 +626,7 @@ function DesignerMapVisual() {
         tags={["발레아쥬", "탈색"]}
       />
       <FloatingColoristCard
-        className="left-[7%] top-[26%]"
+        className="left-[11%] top-[26%]"
         name="서윤"
         score="4.9"
         image="/designer-profiles/seoyun.png"
@@ -634,7 +634,7 @@ function DesignerMapVisual() {
         tags={["애쉬", "옴브레"]}
       />
       <FloatingColoristCard
-        className="right-[4%] top-[25%]"
+        className="right-[8%] top-[25%]"
         name="지우"
         score="4.9"
         image="/designer-profiles/jiu.png"
@@ -642,7 +642,7 @@ function DesignerMapVisual() {
         tags={["선릿", "탈색"]}
       />
       <FloatingColoristCard
-        className="left-[32%] top-[44%]"
+        className="left-[34%] top-[44%]"
         name="민주"
         score="4.9"
         image="/designer-profiles/chaea.png"
@@ -650,7 +650,7 @@ function DesignerMapVisual() {
         tags={["탈색", "파스텔"]}
       />
       <FloatingColoristCard
-        className="left-[7%] top-[60%]"
+        className="left-[11%] top-[60%]"
         name="도윤"
         score="4.9"
         image="/designer-profiles/doyun.png"
@@ -658,7 +658,7 @@ function DesignerMapVisual() {
         tags={["레드브라운", "염색"]}
       />
       <FloatingColoristCard
-        className="left-[33%] top-[72%]"
+        className="left-[35%] top-[72%]"
         name="민준"
         score="4.9"
         image="/designer-profiles/minjun.png"
@@ -666,7 +666,7 @@ function DesignerMapVisual() {
         tags={["애쉬카키", "투톤"]}
       />
       <FloatingColoristCard
-        className="right-[5%] top-[66%]"
+        className="right-[9%] top-[66%]"
         name="현우"
         score="4.9"
         image="/designer-profiles/hyunwoo.png"
@@ -694,31 +694,31 @@ function FloatingColoristCard({
 }) {
   return (
     <div
-      className={`designer-card-pin absolute w-[158px] ${className}`}
+      className={`designer-card-pin absolute w-[136px] ${className}`}
       style={{ animationDelay: `${animationDelay}ms` }}
     >
-      <div className="rounded-2xl border border-[#e6eaf0] bg-white/94 p-2.5 shadow-[0_18px_36px_rgba(15,23,42,0.14)] backdrop-blur">
-        <div className="flex items-center gap-2">
+      <div className="rounded-[14px] border border-[#e6eaf0] bg-white/94 p-2 shadow-[0_14px_28px_rgba(15,23,42,0.13)] backdrop-blur">
+        <div className="flex items-center gap-1.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={image}
             alt={`${name} 프로필`}
-            className="h-10 w-10 shrink-0 rounded-full bg-[#edf1f5] object-cover object-top"
+            className="h-8 w-8 shrink-0 rounded-full bg-[#edf1f5] object-cover object-top"
           />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <p className="whitespace-nowrap text-base font-extrabold text-[#111827]">
+            <div className="flex items-center gap-1">
+              <p className="whitespace-nowrap text-[14px] font-extrabold text-[#111827]">
                 {name}
               </p>
-              <p className="shrink-0 whitespace-nowrap text-xs font-bold text-[#697386]">
+              <p className="shrink-0 whitespace-nowrap text-[10px] font-bold text-[#697386]">
                 <span className="text-[#ff9a1f]">★</span> {score}
               </p>
             </div>
-            <div className="mt-1.5 flex flex-nowrap gap-1 overflow-hidden">
+            <div className="mt-1 flex flex-nowrap gap-0.5 overflow-hidden">
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="whitespace-nowrap rounded-md bg-[#fff1ea] px-1.5 py-0.5 text-[10px] font-bold leading-none text-[#b44724]"
+                  className="whitespace-nowrap rounded-[5px] bg-[#fff1ea] px-1 py-0.5 text-[9px] font-bold leading-none text-[#b44724]"
                 >
                   {tag}
                 </span>
@@ -728,8 +728,8 @@ function FloatingColoristCard({
         </div>
       </div>
       <div className="flex flex-col items-center">
-        <div className="h-7 w-px bg-[#14233d]" />
-        <div className="h-2.5 w-2.5 rounded-full bg-[#14233d]" />
+        <div className="h-5 w-px bg-[#14233d]" />
+        <div className="h-2 w-2 rounded-full bg-[#14233d]" />
       </div>
     </div>
   );
