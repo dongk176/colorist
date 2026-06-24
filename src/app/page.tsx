@@ -249,8 +249,12 @@ function RegistrationFlow() {
     }
   }, [page, requestedPage, router]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [page]);
+
   const goToPage = (nextPage: PageKey) => {
-    router.push(urlForPage(nextPage), { scroll: false });
+    router.push(urlForPage(nextPage), { scroll: true });
   };
 
   const naverBookingLinkError = useMemo(
