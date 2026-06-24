@@ -16,6 +16,10 @@ create table if not exists public.colorist_pre_registrations (
   desired_customer_types text[] not null default '{}'::text[],
   main_need text,
   consent boolean not null default false,
+  designer_pain_point text,
+  customer_source text,
+  subscription_intent text,
+  survey_submitted_at timestamptz,
   source text not null default 'hongdae_designer_pre_registration',
   status text not null default 'submitted',
   created_at timestamptz not null default now(),
@@ -32,6 +36,12 @@ create table if not exists public.colorist_pre_registrations (
   constraint colorist_pre_registrations_status_check
     check (status in ('submitted', 'reviewing', 'drafted', 'contacted', 'archived'))
 );
+
+alter table public.colorist_pre_registrations
+  add column if not exists designer_pain_point text,
+  add column if not exists customer_source text,
+  add column if not exists subscription_intent text,
+  add column if not exists survey_submitted_at timestamptz;
 
 create index if not exists colorist_pre_registrations_created_at_idx
   on public.colorist_pre_registrations (created_at desc);
@@ -66,4 +76,14 @@ create policy "Allow public colorist pre-registration inserts"
 on public.colorist_pre_registrations
 for insert
 to anon, authenticated
+with check (consent = true);
+
+drop policy if exists "Allow public survey updates"
+  on public.colorist_pre_registrations;
+
+create policy "Allow public survey updates"
+on public.colorist_pre_registrations
+for update
+to anon, authenticated
+using (survey_submitted_at is null)
 with check (consent = true);

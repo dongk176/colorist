@@ -31,6 +31,13 @@ type RegistrationPayload = {
   consent: boolean;
 };
 
+type SurveyPayload = {
+  id: string;
+  designerPainPoint: string;
+  customerSource: string;
+  subscriptionIntent: string;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -163,6 +170,33 @@ function parsePayload(body: unknown): RegistrationPayload | null {
   };
 }
 
+function parseSurveyPayload(body: unknown): SurveyPayload | null {
+  if (!isRecord(body)) return null;
+
+  return {
+    id: typeof body.id === "string" ? body.id.trim() : "",
+    designerPainPoint:
+      typeof body.designerPainPoint === "string"
+        ? body.designerPainPoint.trim()
+        : "",
+    customerSource:
+      typeof body.customerSource === "string" ? body.customerSource.trim() : "",
+    subscriptionIntent:
+      typeof body.subscriptionIntent === "string"
+        ? body.subscriptionIntent.trim()
+        : "",
+  };
+}
+
+function getSurveyValidationError(payload: SurveyPayload) {
+  if (!payload.id) return "등록 정보를 찾을 수 없어요.";
+  if (!payload.designerPainPoint) return "가장 힘든 점을 선택해주세요.";
+  if (!payload.customerSource) return "현재 고객 유입 경로를 선택해주세요.";
+  if (!payload.subscriptionIntent) return "월 구독 의향을 선택해주세요.";
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   if (!SUPABASE_KEY) {
     return NextResponse.json(
@@ -204,14 +238,14 @@ export async function POST(request: NextRequest) {
   };
 
   const supabaseResponse = await fetch(
-    `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/colorist_pre_registrations`,
+    `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/colorist_pre_registrations?select=id`,
     {
       method: "POST",
       headers: {
         apikey: SUPABASE_KEY,
         Authorization: `Bearer ${SUPABASE_KEY}`,
         "Content-Type": "application/json",
-        Prefer: "return=minimal",
+        Prefer: "return=representation",
       },
       body: JSON.stringify(insertPayload),
     },
@@ -224,6 +258,73 @@ export async function POST(request: NextRequest) {
       {
         error:
           "Supabase 저장에 실패했어요. 테이블/정책/키 설정을 확인해주세요.",
+        detail: errorText,
+      },
+      { status: 502 },
+    );
+  }
+
+  const savedRows = (await supabaseResponse.json().catch(() => [])) as Array<{
+    id?: string;
+  }>;
+
+  return NextResponse.json({ ok: true, id: savedRows[0]?.id ?? null });
+}
+
+export async function PATCH(request: NextRequest) {
+  if (!SUPABASE_KEY) {
+    return NextResponse.json(
+      {
+        error:
+          "Supabase 키가 설정되지 않았어요. SUPABASE_ANON_KEY 또는 SUPABASE_SERVICE_ROLE_KEY를 .env.local에 넣어주세요.",
+      },
+      { status: 500 },
+    );
+  }
+
+  const body = (await request.json().catch(() => null)) as unknown;
+  const payload = parseSurveyPayload(body);
+
+  if (!payload) {
+    return NextResponse.json(
+      { error: "요청 형식이 올바르지 않아요." },
+      { status: 400 },
+    );
+  }
+
+  const validationError = getSurveyValidationError(payload);
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
+  }
+
+  const surveyPayload = {
+    designer_pain_point: payload.designerPainPoint,
+    customer_source: payload.customerSource,
+    subscription_intent: payload.subscriptionIntent,
+    survey_submitted_at: new Date().toISOString(),
+  };
+
+  const supabaseResponse = await fetch(
+    `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/colorist_pre_registrations?id=eq.${encodeURIComponent(payload.id)}`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(surveyPayload),
+    },
+  );
+
+  if (!supabaseResponse.ok) {
+    const errorText = await supabaseResponse.text();
+
+    return NextResponse.json(
+      {
+        error:
+          "설문 저장에 실패했어요. 테이블/정책/키 설정을 확인해주세요.",
         detail: errorText,
       },
       { status: 502 },

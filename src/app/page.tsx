@@ -14,6 +14,12 @@ type ServiceOption = {
   image: string;
 };
 
+type SurveyAnswers = {
+  designerPainPoint: string;
+  customerSource: string;
+  subscriptionIntent: string;
+};
+
 const SERVICES = [
   { label: "원컬러 / 전체염색", image: "/service-images/one-color-full.png" },
   { label: "뿌리염색 / 리터치", image: "/service-images/root-retouch.png" },
@@ -50,6 +56,36 @@ const MAIN_NEEDS = [
   "포트폴리오 노출",
   "특정 시술 고객 확보",
   "아직 잘 모르겠음",
+];
+
+const DESIGNER_PAIN_POINTS = [
+  "신규 고객을 꾸준히 받기 어렵다",
+  "내가 잘하는 시술이 고객에게 잘 안 보인다",
+  "가격을 설명하거나 납득시키기 어렵다",
+  "상담에 시간이 너무 많이 든다",
+  "노쇼 / 예약 변경이 스트레스다",
+  "리뷰나 포트폴리오 관리가 어렵다",
+  "인스타그램 홍보가 부담스럽다",
+  "고단가 시술 고객을 만나기 어렵다",
+  "단골 고객으로 전환시키기 어렵다",
+  "체력적으로 너무 힘들다",
+];
+
+const CUSTOMER_SOURCES = [
+  "네이버 예약 / 네이버 지도",
+  "인스타그램",
+  "기존 단골 소개",
+  "샵 자체 홍보",
+  "지인 소개",
+  "당근 / 지역 커뮤니티",
+  "특별히 없다",
+];
+
+const SUBSCRIPTION_INTENTS = [
+  "있다",
+  "가격에 따라 있다",
+  "아직 모르겠다",
+  "없다",
 ];
 
 export default function Home() {
@@ -205,6 +241,7 @@ function RegistrationFlow() {
   const [consent, setConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
+  const [registrationId, setRegistrationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (requestedPage !== page) {
@@ -318,12 +355,14 @@ function RegistrationFlow() {
 
       const result = (await response.json().catch(() => null)) as {
         error?: string;
+        id?: string | null;
       } | null;
 
       if (!response.ok) {
         throw new Error(result?.error ?? "등록 저장에 실패했어요.");
       }
 
+      setRegistrationId(result?.id ?? null);
       goToPage("complete");
     } catch (error) {
       setSubmissionError(
@@ -414,7 +453,11 @@ function RegistrationFlow() {
               />
             )}
             {page === "complete" && (
-              <CompleteStep contactType={contactType} onConfirm={() => goToPage("start")} />
+              <CompleteStep
+                contactType={contactType}
+                registrationId={registrationId}
+                onConfirm={() => goToPage("start")}
+              />
             )}
           </div>
 
@@ -444,7 +487,7 @@ function RegistrationFlow() {
             <button
               type="button"
               onClick={() => goToPage("start")}
-              className="mt-6 h-14 w-full rounded-2xl bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] px-5 text-base font-semibold text-white transition hover:brightness-110"
+              className="mt-6 h-14 w-full rounded-2xl border border-[#dfe3e8] bg-white px-5 text-base font-bold text-[#505966] transition hover:bg-[#f5f6f8]"
             >
               확인
             </button>
@@ -1313,11 +1356,71 @@ function ConfirmStep({
 
 function CompleteStep({
   contactType,
+  registrationId,
   onConfirm,
 }: {
   contactType: ContactType;
+  registrationId: string | null;
   onConfirm: () => void;
 }) {
+  const [isSurveyOpen, setIsSurveyOpen] = useState(false);
+  const [surveyAnswers, setSurveyAnswers] = useState<SurveyAnswers>({
+    designerPainPoint: "",
+    customerSource: "",
+    subscriptionIntent: "",
+  });
+  const [isSurveySubmitting, setIsSurveySubmitting] = useState(false);
+  const [surveyError, setSurveyError] = useState("");
+  const [isSurveySubmitted, setIsSurveySubmitted] = useState(false);
+
+  const canSubmitSurvey =
+    Boolean(surveyAnswers.designerPainPoint) &&
+    Boolean(surveyAnswers.customerSource) &&
+    Boolean(surveyAnswers.subscriptionIntent) &&
+    !isSurveySubmitting;
+
+  const submitSurvey = async () => {
+    if (!canSubmitSurvey) return;
+
+    if (!registrationId) {
+      setSurveyError("등록 정보를 찾을 수 없어요. 다시 등록 후 참여해주세요.");
+      return;
+    }
+
+    setSurveyError("");
+    setIsSurveySubmitting(true);
+
+    try {
+      const response = await fetch("/api/colorist-pre-registrations", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: registrationId,
+          ...surveyAnswers,
+        }),
+      });
+
+      const result = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+
+      if (!response.ok) {
+        throw new Error(result?.error ?? "설문 저장에 실패했어요.");
+      }
+
+      setIsSurveySubmitted(true);
+      setIsSurveyOpen(false);
+    } catch (error) {
+      setSurveyError(
+        error instanceof Error ? error.message : "설문 저장에 실패했어요.",
+      );
+    } finally {
+      setIsSurveySubmitting(false);
+    }
+  };
+
   return (
     <div className="flex flex-1 flex-col justify-center pb-12 text-center">
       <div className="mx-auto mb-7 flex h-16 w-16 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] text-2xl font-bold text-white">
@@ -1344,7 +1447,189 @@ function CompleteStep({
       <button type="button" onClick={onConfirm} className="sr-only">
         확인
       </button>
+      <SurveyPromptOverlay
+        isSubmitted={isSurveySubmitted}
+        onOpen={() => setIsSurveyOpen(true)}
+      />
+      {isSurveyOpen && (
+        <SurveySheet
+          answers={surveyAnswers}
+          canSubmit={canSubmitSurvey}
+          error={surveyError}
+          isSubmitting={isSurveySubmitting}
+          onAnswerChange={(key, value) =>
+            setSurveyAnswers((current) => ({ ...current, [key]: value }))
+          }
+          onClose={() => setIsSurveyOpen(false)}
+          onSubmit={submitSurvey}
+        />
+      )}
     </div>
+  );
+}
+
+function SurveyPromptOverlay({
+  isSubmitted,
+  onOpen,
+}: {
+  isSubmitted: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <div className="fixed bottom-0 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 px-6 pb-6">
+      {isSubmitted ? (
+        <div className="rounded-[24px] border border-[#ffd8bf] bg-white px-5 py-4 text-center shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
+          <p className="text-sm font-black text-[#111827]">
+            설문이 저장됐어요.
+          </p>
+          <p className="mt-1 text-xs font-semibold text-[#838b96]">
+            답변은 프로필 준비에 함께 참고할게요.
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="h-16 w-full rounded-[24px] bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] px-5 text-base font-black text-white shadow-[0_18px_42px_rgba(255,75,110,0.30)] transition hover:brightness-110"
+        >
+          10초 설문 참여하기
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SurveySheet({
+  answers,
+  canSubmit,
+  error,
+  isSubmitting,
+  onAnswerChange,
+  onClose,
+  onSubmit,
+}: {
+  answers: SurveyAnswers;
+  canSubmit: boolean;
+  error: string;
+  isSubmitting: boolean;
+  onAnswerChange: (key: keyof SurveyAnswers, value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <div className="fixed inset-y-0 left-1/2 z-50 w-full max-w-[430px] -translate-x-1/2 bg-black/45 backdrop-blur-[2px]">
+      <button
+        type="button"
+        aria-label="설문 배경 닫기"
+        onClick={onClose}
+        className="absolute inset-0"
+      />
+      <div className="absolute inset-x-0 bottom-0 z-10 flex max-h-[88svh] min-h-0 w-full flex-col overflow-hidden rounded-t-[30px] bg-white shadow-[0_-24px_70px_rgba(15,23,42,0.24)]">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#eceff3] px-5 py-4">
+          <div>
+            <p className="text-lg font-black text-[#111827]">10초 설문</p>
+            <p className="mt-1 text-xs font-bold text-[#838b96]">
+              답변은 현재 등록 정보에 함께 저장돼요.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="설문 닫기"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f1f3f6] text-2xl font-light leading-none text-[#111827] transition hover:bg-[#e7ebf0]"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <SurveyQuestion
+            title="디자이너 생활 중 가장 힘든 점은 무엇인가요?"
+            options={DESIGNER_PAIN_POINTS}
+            value={answers.designerPainPoint}
+            onChange={(value) => onAnswerChange("designerPainPoint", value)}
+          />
+          <SurveyQuestion
+            title="현재 고객은 주로 어디서 오나요?"
+            options={CUSTOMER_SOURCES}
+            value={answers.customerSource}
+            onChange={(value) => onAnswerChange("customerSource", value)}
+          />
+          <SurveyQuestion
+            title="원하는 고객에게 더 잘 노출된다면, 월 구독을 이용할 의향이 있나요?"
+            options={SUBSCRIPTION_INTENTS}
+            value={answers.subscriptionIntent}
+            onChange={(value) => onAnswerChange("subscriptionIntent", value)}
+          />
+
+          {error && (
+            <p className="mt-4 rounded-2xl border border-[#ffd2dc] bg-[#fff4f6] px-4 py-3 text-sm font-bold leading-6 text-[#e11d48]">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="shrink-0 border-t border-[#eceff3] bg-white px-5 pb-5 pt-3">
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!canSubmit}
+            className={`h-14 w-full rounded-2xl bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] px-5 text-base font-black text-white transition ${
+              canSubmit
+                ? "hover:brightness-110"
+                : "cursor-not-allowed opacity-35"
+            }`}
+          >
+            {isSubmitting ? "저장 중..." : "설문 제출하기"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function SurveyQuestion({
+  title,
+  options,
+  value,
+  onChange,
+}: {
+  title: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <section className="mb-7">
+      <h2 className="text-[15px] font-black leading-6 text-[#111827]">
+        {title}
+      </h2>
+      <div className="mt-3 grid gap-2">
+        {options.map((option) => {
+          const isSelected = value === option;
+
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onChange(option)}
+              className={`min-h-11 rounded-2xl border px-4 py-3 text-left text-sm font-bold leading-5 transition ${
+                isSelected
+                  ? "border-[#ff6a3d] bg-[#fff1ea] text-[#111827] shadow-[0_8px_22px_rgba(255,75,110,0.12)]"
+                  : "border-[#e1e5ea] bg-white text-[#505966] hover:border-[#ffb29a]"
+              }`}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
