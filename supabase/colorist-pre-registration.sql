@@ -1,10 +1,12 @@
--- Colori Hongdae designer pre-registration schema.
+-- Colorist Hongdae designer pre-registration dedicated schema.
 -- Supabase project: Gaming
 -- URL: https://mvcprswvfybudtopepuj.supabase.co
 
 create extension if not exists pgcrypto;
 
-create table if not exists public.colorist_pre_registrations (
+create schema if not exists colorist_pre_registration;
+
+create table if not exists colorist_pre_registration.registrations (
   id uuid primary key default gen_random_uuid(),
   naver_booking_link text not null,
   selected_services text[] not null,
@@ -25,31 +27,81 @@ create table if not exists public.colorist_pre_registrations (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
-  constraint colorist_pre_registrations_contact_type_check
+  constraint registrations_contact_type_check
     check (contact_type in ('instagram', 'phone')),
-  constraint colorist_pre_registrations_services_count_check
-    check (
-      cardinality(selected_services) between 1 and 3
-    ),
-  constraint colorist_pre_registrations_consent_check
+  constraint registrations_services_count_check
+    check (cardinality(selected_services) between 1 and 3),
+  constraint registrations_consent_check
     check (consent = true),
-  constraint colorist_pre_registrations_status_check
+  constraint registrations_status_check
     check (status in ('submitted', 'reviewing', 'drafted', 'contacted', 'archived'))
 );
 
-alter table public.colorist_pre_registrations
+alter table colorist_pre_registration.registrations
   add column if not exists designer_pain_point text,
   add column if not exists customer_source text,
   add column if not exists subscription_intent text,
   add column if not exists survey_submitted_at timestamptz;
 
-create index if not exists colorist_pre_registrations_created_at_idx
-  on public.colorist_pre_registrations (created_at desc);
+do $$
+begin
+  if to_regclass('public.colorist_pre_registrations') is not null then
+    execute $copy$
+      insert into colorist_pre_registration.registrations (
+        id,
+        naver_booking_link,
+        selected_services,
+        contact_type,
+        contact_value,
+        uploaded_files,
+        uploaded_file_count,
+        instagram_portfolio_id,
+        desired_customer_types,
+        main_need,
+        consent,
+        designer_pain_point,
+        customer_source,
+        subscription_intent,
+        survey_submitted_at,
+        source,
+        status,
+        created_at,
+        updated_at
+      )
+      select
+        id,
+        naver_booking_link,
+        selected_services,
+        contact_type,
+        contact_value,
+        uploaded_files,
+        uploaded_file_count,
+        instagram_portfolio_id,
+        desired_customer_types,
+        main_need,
+        consent,
+        designer_pain_point,
+        customer_source,
+        subscription_intent,
+        survey_submitted_at,
+        source,
+        status,
+        created_at,
+        updated_at
+      from public.colorist_pre_registrations
+      on conflict (id) do nothing
+    $copy$;
+  end if;
+end
+$$;
 
-create index if not exists colorist_pre_registrations_status_idx
-  on public.colorist_pre_registrations (status);
+create index if not exists registrations_created_at_idx
+  on colorist_pre_registration.registrations (created_at desc);
 
-create or replace function public.set_colorist_pre_registration_updated_at()
+create index if not exists registrations_status_idx
+  on colorist_pre_registration.registrations (status);
+
+create or replace function colorist_pre_registration.set_updated_at()
 returns trigger
 language plpgsql
 as $$
@@ -59,31 +111,38 @@ begin
 end;
 $$;
 
-drop trigger if exists set_colorist_pre_registration_updated_at
-  on public.colorist_pre_registrations;
+drop trigger if exists set_registrations_updated_at
+  on colorist_pre_registration.registrations;
 
-create trigger set_colorist_pre_registration_updated_at
-before update on public.colorist_pre_registrations
+create trigger set_registrations_updated_at
+before update on colorist_pre_registration.registrations
 for each row
-execute function public.set_colorist_pre_registration_updated_at();
+execute function colorist_pre_registration.set_updated_at();
 
-alter table public.colorist_pre_registrations enable row level security;
+alter table colorist_pre_registration.registrations enable row level security;
 
-drop policy if exists "Allow public colorist pre-registration inserts"
-  on public.colorist_pre_registrations;
+drop policy if exists "Allow pre-registration inserts"
+  on colorist_pre_registration.registrations;
 
-create policy "Allow public colorist pre-registration inserts"
-on public.colorist_pre_registrations
+create policy "Allow pre-registration inserts"
+on colorist_pre_registration.registrations
 for insert
 to anon, authenticated
 with check (consent = true);
 
-drop policy if exists "Allow public survey updates"
-  on public.colorist_pre_registrations;
+drop policy if exists "Allow survey updates"
+  on colorist_pre_registration.registrations;
 
-create policy "Allow public survey updates"
-on public.colorist_pre_registrations
+create policy "Allow survey updates"
+on colorist_pre_registration.registrations
 for update
 to anon, authenticated
 using (survey_submitted_at is null)
 with check (consent = true);
+
+grant usage on schema colorist_pre_registration to anon, authenticated, service_role;
+grant insert, update on colorist_pre_registration.registrations to anon, authenticated;
+grant all on colorist_pre_registration.registrations to service_role;
+
+drop table if exists public.colorist_pre_registrations;
+drop function if exists public.set_colorist_pre_registration_updated_at();

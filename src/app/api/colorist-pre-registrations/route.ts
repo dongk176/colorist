@@ -11,6 +11,9 @@ const SUPABASE_KEY =
   process.env.SUPABASE_ANON_KEY ??
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+const COLORIST_SCHEMA = "colorist_pre_registration";
+const COLORIST_REST_TABLE = "registrations";
+
 let postgresClient: ReturnType<typeof postgres> | null = null;
 
 type ContactType = "instagram" | "phone";
@@ -248,7 +251,7 @@ export async function POST(request: NextRequest) {
 
   if (sql) {
     const rows = await sql<{ id: string }[]>`
-      insert into public.colorist_pre_registrations (
+      insert into colorist_pre_registration.registrations (
         naver_booking_link,
         selected_services,
         contact_type,
@@ -291,13 +294,15 @@ export async function POST(request: NextRequest) {
   }
 
   const supabaseResponse = await fetch(
-    `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/colorist_pre_registrations?select=id`,
+    `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${COLORIST_REST_TABLE}?select=id`,
     {
       method: "POST",
       headers: {
         apikey: SUPABASE_KEY,
         Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Accept-Profile": COLORIST_SCHEMA,
         "Content-Type": "application/json",
+        "Content-Profile": COLORIST_SCHEMA,
         Prefer: "return=representation",
       },
       body: JSON.stringify(insertPayload),
@@ -350,7 +355,7 @@ export async function PATCH(request: NextRequest) {
 
   if (sql) {
     await sql`
-      update public.colorist_pre_registrations
+      update colorist_pre_registration.registrations
       set
         designer_pain_point = ${surveyPayload.designer_pain_point},
         customer_source = ${surveyPayload.customer_source},
@@ -373,13 +378,15 @@ export async function PATCH(request: NextRequest) {
   }
 
   const supabaseResponse = await fetch(
-    `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/colorist_pre_registrations?id=eq.${encodeURIComponent(payload.id)}`,
+    `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${COLORIST_REST_TABLE}?id=eq.${encodeURIComponent(payload.id)}`,
     {
       method: "PATCH",
       headers: {
         apikey: SUPABASE_KEY,
         Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Accept-Profile": COLORIST_SCHEMA,
         "Content-Type": "application/json",
+        "Content-Profile": COLORIST_SCHEMA,
         Prefer: "return=minimal",
       },
       body: JSON.stringify(surveyPayload),
