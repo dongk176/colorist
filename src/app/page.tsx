@@ -800,13 +800,13 @@ function StartScreen({ onStart }: { onStart: () => void }) {
       </div>
 
       <div className="relative z-10">
-        <h1 className="font-title text-[52px] font-black leading-[1.02] tracking-normal text-[#111827]">
+        <h1 className="font-title text-[44px] font-black leading-[1.02] tracking-normal text-[#111827]">
           <span className="block whitespace-nowrap">홍대 디자이너</span>
           <span className="block text-[#ff4b6e]">사전 등록</span>
         </h1>
 
         <div className="mt-12">
-          <p className="text-[25px] font-medium leading-[1.35] text-[#4b5563]">
+          <p className="text-[20px] font-medium leading-[1.32] text-[#4b5563]">
             <span className="text-[#03c75a]">네이버예약</span>{" "}
             링크만 남기면
             <br />
@@ -831,18 +831,18 @@ function StartScreen({ onStart }: { onStart: () => void }) {
         <button
           type="button"
           onClick={() => setIsPreviewOpen(true)}
-          className="h-16 w-full rounded-[24px] border border-[#ffb29a] bg-white px-5 text-base font-black text-[#ff4b6e] shadow-[0_14px_32px_rgba(255,75,110,0.12)] transition hover:bg-[#fff6f2]"
+          className="h-16 w-full rounded-[24px] border border-[#ffb29a] bg-white px-5 text-[15px] font-black text-[#ff4b6e] shadow-[0_14px_32px_rgba(255,75,110,0.12)] transition hover:bg-[#fff6f2]"
         >
           프로필 초안 미리보기
         </button>
         <button
           type="button"
           onClick={onStart}
-          className="h-16 w-full rounded-[24px] bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] px-5 text-base font-black text-white shadow-[0_18px_42px_rgba(255,75,110,0.30)] transition hover:brightness-110"
+          className="h-16 w-full rounded-[24px] bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] px-5 text-[15px] font-black text-white shadow-[0_18px_42px_rgba(255,75,110,0.30)] transition hover:brightness-110"
         >
           30초 간편 사전 등록하기
         </button>
-        <p className="pt-1 text-center text-xs font-bold text-[#8b929d]">
+        <p className="pt-1 text-center text-[11px] font-bold text-[#8b929d]">
           입력한 정보는 안전하게 보호돼요.
         </p>
       </div>
