@@ -1065,6 +1065,23 @@ function ContactStep({
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onInstagramPortfolioIdChange: (value: string) => void;
 }) {
+  const [uploadedFilePreviews, setUploadedFilePreviews] = useState<
+    Array<{ file: File; url: string }>
+  >([]);
+
+  useEffect(() => {
+    const nextPreviews = uploadedFiles.map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+    }));
+
+    setUploadedFilePreviews(nextPreviews);
+
+    return () => {
+      nextPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [uploadedFiles]);
+
   return (
     <StepFrame title="연락처">
       <label className="mt-6 block">
@@ -1125,6 +1142,42 @@ function ContactStep({
                 : "아직 첨부된 파일이 없어요."}
             </span>
           </label>
+          {uploadedFilePreviews.length > 0 && (
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {uploadedFilePreviews.map(({ file, url }) => (
+                <div
+                  key={`${file.name}-${file.lastModified}`}
+                  className="group relative aspect-square overflow-hidden rounded-xl border border-[#dfe3e8] bg-white"
+                >
+                  {file.type.startsWith("image/") ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={url}
+                      alt={file.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : file.type.startsWith("video/") ? (
+                    <video
+                      src={url}
+                      className="h-full w-full object-cover"
+                      muted
+                      playsInline
+                      preload="metadata"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] font-bold leading-4 text-[#6f7783]">
+                      {file.name}
+                    </div>
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-black/50 px-2 py-1">
+                    <p className="truncate text-[10px] font-bold text-white">
+                      {file.name}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="my-5 flex items-center gap-3 text-xs font-bold text-[#778397]">
