@@ -832,6 +832,13 @@ function StartScreen({ onStart }: { onStart: () => void }) {
         <button
           type="button"
           onClick={onStart}
+          className="h-16 w-full rounded-[24px] border border-[#ffd2c0] bg-[#fff8f4] px-5 text-[15px] font-black text-[#d9481f] shadow-[0_12px_28px_rgba(255,138,0,0.10)] transition hover:bg-[#fff1ea]"
+        >
+          직접 만들기
+        </button>
+        <button
+          type="button"
+          onClick={onStart}
           className="h-16 w-full rounded-[24px] bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] px-5 text-[15px] font-black text-white shadow-[0_18px_42px_rgba(255,75,110,0.30)] transition hover:brightness-110"
         >
           30초 간편 사전 등록하기
