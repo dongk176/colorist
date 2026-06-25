@@ -1345,10 +1345,10 @@ function ConfirmStep({
 
   return (
     <StepFrame title="입력한 정보" description="입력하신 정보를 확인해 주세요.">
-      <div className="mt-6 rounded-3xl border border-[#e5e8ec] bg-white p-4">
+      <div className="mt-6 overflow-hidden rounded-3xl border border-[#e5e8ec] bg-white p-4">
         <div className="grid gap-4">
           {summary.map(([label, value]) => (
-            <div key={label}>
+            <div key={label} className="min-w-0">
               <p className="text-xs font-bold text-[#838b96]">
                 {label === "네이버예약 링크" ? (
                   <>
@@ -1358,7 +1358,7 @@ function ConfirmStep({
                   label
                 )}
               </p>
-              <p className="mt-1 break-words text-sm font-semibold leading-6 text-[#252c36]">
+              <p className="mt-1 min-w-0 whitespace-normal break-words text-sm font-semibold leading-6 text-[#252c36] [overflow-wrap:anywhere]">
                 {value}
               </p>
             </div>
