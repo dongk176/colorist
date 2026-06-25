@@ -20,6 +20,19 @@ type SurveyAnswers = {
   subscriptionIntent: string[];
 };
 
+type UploadedMediaAsset = {
+  name: string;
+  size: number;
+  type: string;
+  s3Key: string;
+  url: string;
+};
+
+type ManualPriceItem = {
+  service: string;
+  price: string;
+};
+
 const SERVICES = [
   { label: "원컬러 / 전체염색", image: "/service-images/one-color-full.png" },
   { label: "뿌리염색 / 리터치", image: "/service-images/root-retouch.png" },
@@ -100,6 +113,8 @@ const PAGE_KEYS = [
   "map",
   "designers",
   "start",
+  "manual",
+  "manual-complete",
   "booking",
   "services",
   "contact",
@@ -114,6 +129,8 @@ const PAGE_TO_STEP: Record<PageKey, number> = {
   map: -1,
   designers: -1,
   start: 0,
+  manual: 0,
+  "manual-complete": 0,
   booking: 1,
   services: 2,
   contact: 3,
@@ -216,6 +233,67 @@ function getPhoneNumberError(value: string) {
   return null;
 }
 
+function fileExtension(file: File) {
+  const fromName = file.name.split(".").pop()?.trim().toLowerCase();
+  if (fromName) return fromName;
+  if (file.type === "image/jpeg") return "jpg";
+  if (file.type === "image/png") return "png";
+  if (file.type === "image/webp") return "webp";
+  return "jpg";
+}
+
+async function uploadManualProfileImage(
+  file: File,
+  kind: "profile" | "case",
+): Promise<UploadedMediaAsset> {
+  const presignResponse = await fetch(
+    "/api/colorist-manual-profiles/upload-url",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind,
+        contentType: file.type,
+        fileSize: file.size,
+        fileExtension: fileExtension(file),
+      }),
+    },
+  );
+
+  const presign = (await presignResponse.json().catch(() => null)) as
+    | {
+        error?: string;
+        uploadUrl?: string;
+        s3Key?: string;
+        mediaUrl?: string;
+      }
+    | null;
+
+  if (!presignResponse.ok || !presign?.uploadUrl || !presign.s3Key || !presign.mediaUrl) {
+    throw new Error(presign?.error ?? "이미지 업로드 URL 생성에 실패했어요.");
+  }
+
+  const uploadResponse = await fetch(presign.uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": file.type,
+    },
+    body: file,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error("이미지 업로드에 실패했어요.");
+  }
+
+  return {
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    s3Key: presign.s3Key,
+    url: presign.mediaUrl,
+  };
+}
+
 function LightShell() {
   return (
     <main className="min-h-[100svh] bg-[#f5f6f8] sm:flex sm:items-center sm:justify-center sm:p-6">
@@ -242,6 +320,7 @@ function RegistrationFlow() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
   const [registrationId, setRegistrationId] = useState<string | null>(null);
+  const [manualProfileId, setManualProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     if (requestedPage !== page) {
@@ -404,7 +483,27 @@ function RegistrationFlow() {
                 }}
               />
             )}
-            {page === "start" && <StartScreen onStart={() => goToPage("booking")} />}
+            {page === "start" && (
+              <StartScreen
+                onStart={() => goToPage("booking")}
+                onManualStart={() => goToPage("manual")}
+              />
+            )}
+            {page === "manual" && (
+              <ManualProfileStep
+                onCreated={(profileId) => {
+                  setManualProfileId(profileId);
+                  goToPage("manual-complete");
+                }}
+              />
+            )}
+            {page === "manual-complete" && (
+              <ManualProfileComplete
+                profileId={manualProfileId}
+                onEdit={() => goToPage("manual")}
+                onHome={() => goToPage("start")}
+              />
+            )}
             {page === "booking" && (
               <BookingStep
                 value={naverBookingLink}
@@ -774,7 +873,13 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
   );
 }
 
-function StartScreen({ onStart }: { onStart: () => void }) {
+function StartScreen({
+  onManualStart,
+  onStart,
+}: {
+  onManualStart: () => void;
+  onStart: () => void;
+}) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   return (
@@ -831,7 +936,7 @@ function StartScreen({ onStart }: { onStart: () => void }) {
         </button>
         <button
           type="button"
-          onClick={onStart}
+          onClick={onManualStart}
           className="h-16 w-full rounded-[24px] border border-[#ffd2c0] bg-[#fff8f4] px-5 text-[15px] font-black text-[#d9481f] shadow-[0_12px_28px_rgba(255,138,0,0.10)] transition hover:bg-[#fff1ea]"
         >
           직접 만들기
@@ -1072,22 +1177,20 @@ function ContactStep({
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onInstagramPortfolioIdChange: (value: string) => void;
 }) {
-  const [uploadedFilePreviews, setUploadedFilePreviews] = useState<
-    Array<{ file: File; url: string }>
-  >([]);
+  const uploadedFilePreviews = useMemo(
+    () =>
+      uploadedFiles.map((file) => ({
+        file,
+        url: URL.createObjectURL(file),
+      })),
+    [uploadedFiles],
+  );
 
   useEffect(() => {
-    const nextPreviews = uploadedFiles.map((file) => ({
-      file,
-      url: URL.createObjectURL(file),
-    }));
-
-    setUploadedFilePreviews(nextPreviews);
-
     return () => {
-      nextPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+      uploadedFilePreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
     };
-  }, [uploadedFiles]);
+  }, [uploadedFilePreviews]);
 
   return (
     <StepFrame title="연락처">
@@ -1229,6 +1332,485 @@ function ContactStep({
         )}
       </div>
     </StepFrame>
+  );
+}
+
+function ManualProfileStep({
+  onCreated,
+}: {
+  onCreated: (profileId: string | null) => void;
+}) {
+  const [designerName, setDesignerName] = useState("");
+  const [salonName, setSalonName] = useState("");
+  const [area, setArea] = useState("");
+  const [naverBookingLink, setNaverBookingLink] = useState("");
+  const [contactValue, setContactValue] = useState("");
+  const [intro, setIntro] = useState("");
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [profileFile, setProfileFile] = useState<File | null>(null);
+  const [caseFiles, setCaseFiles] = useState<File[]>([]);
+  const [priceItems, setPriceItems] = useState<ManualPriceItem[]>([
+    { service: "", price: "" },
+    { service: "", price: "" },
+  ]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const naverBookingLinkError = useMemo(
+    () => getNaverBookingLinkError(naverBookingLink),
+    [naverBookingLink],
+  );
+  const contactValueError = useMemo(
+    () => getPhoneNumberError(contactValue),
+    [contactValue],
+  );
+  const completedPriceItems = useMemo(
+    () =>
+      priceItems
+        .map((item) => ({
+          service: item.service.trim(),
+          price: item.price.trim(),
+        }))
+        .filter((item) => item.service && item.price),
+    [priceItems],
+  );
+  const canSubmit =
+    Boolean(designerName.trim()) &&
+    Boolean(salonName.trim()) &&
+    Boolean(area.trim()) &&
+    !naverBookingLinkError &&
+    !contactValueError &&
+    Boolean(intro.trim()) &&
+    selectedServices.length > 0 &&
+    Boolean(profileFile) &&
+    caseFiles.length > 0 &&
+    completedPriceItems.length > 0 &&
+    !isSubmitting;
+
+  const profilePreviewUrl = useMemo(
+    () => (profileFile ? URL.createObjectURL(profileFile) : ""),
+    [profileFile],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (profilePreviewUrl) URL.revokeObjectURL(profilePreviewUrl);
+    };
+  }, [profilePreviewUrl]);
+
+  const casePreviewUrls = useMemo(
+    () =>
+      caseFiles.map((file) => ({
+        file,
+        url: URL.createObjectURL(file),
+      })),
+    [caseFiles],
+  );
+
+  useEffect(() => {
+    return () => {
+      casePreviewUrls.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [casePreviewUrls]);
+
+  const toggleManualService = (service: string) => {
+    setSelectedServices((current) => {
+      if (current.includes(service)) {
+        return current.filter((item) => item !== service);
+      }
+
+      if (current.length >= 3) return current;
+      return [...current, service];
+    });
+  };
+
+  const updatePriceItem = (
+    index: number,
+    field: keyof ManualPriceItem,
+    value: string,
+  ) => {
+    setPriceItems((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    );
+  };
+
+  const addPriceItem = () => {
+    setPriceItems((current) =>
+      current.length >= 4 ? current : [...current, { service: "", price: "" }],
+    );
+  };
+
+  const removePriceItem = (index: number) => {
+    setPriceItems((current) =>
+      current.length <= 1
+        ? current
+        : current.filter((_, itemIndex) => itemIndex !== index),
+    );
+  };
+
+  const submitManualProfile = async () => {
+    if (!canSubmit || !profileFile) return;
+
+    setSubmitError("");
+    setIsSubmitting(true);
+
+    try {
+      const profileImage = await uploadManualProfileImage(profileFile, "profile");
+      const serviceImages = await Promise.all(
+        caseFiles.map((file) => uploadManualProfileImage(file, "case")),
+      );
+
+      const response = await fetch("/api/colorist-manual-profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          designerName: designerName.trim(),
+          salonName: salonName.trim(),
+          area: area.trim(),
+          naverBookingLink: naverBookingLink.trim(),
+          contactValue: contactValue.trim(),
+          intro: intro.trim(),
+          selectedServices,
+          profileImage,
+          serviceImages,
+          priceItems: completedPriceItems,
+        }),
+      });
+
+      const result = (await response.json().catch(() => null)) as
+        | { error?: string; id?: string | null }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(result?.error ?? "프로필 초안 저장에 실패했어요.");
+      }
+
+      onCreated(result?.id ?? null);
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "프로필 초안 저장에 실패했어요.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-1 flex-col pb-28">
+      <div className="pt-1">
+        <h1 className="font-title text-[34px] leading-[1.12] tracking-normal text-[#111827]">
+          직접 만들기
+        </h1>
+        <p className="mt-3 text-base font-medium leading-7 text-[#6a7280]">
+          필수 정보만 넣으면
+          <br />
+          프로필 초안을 바로 만들어요.
+        </p>
+      </div>
+
+      <div className="mt-6 grid gap-5">
+        <ManualField label="디자이너명">
+          <input
+            value={designerName}
+            onChange={(event) => setDesignerName(event.target.value)}
+            placeholder="예: 김준호"
+            className="h-14 w-full rounded-2xl border border-[#dfe3e8] bg-white px-4 text-base font-semibold text-[#111827] outline-none placeholder:text-[#a2a9b3] focus:border-[#ff6a3d]"
+          />
+        </ManualField>
+
+        <div className="grid grid-cols-2 gap-3">
+          <ManualField label="매장명">
+            <input
+              value={salonName}
+              onChange={(event) => setSalonName(event.target.value)}
+              placeholder="예: 어반헤어"
+              className="h-14 w-full rounded-2xl border border-[#dfe3e8] bg-white px-4 text-base font-semibold text-[#111827] outline-none placeholder:text-[#a2a9b3] focus:border-[#ff6a3d]"
+            />
+          </ManualField>
+          <ManualField label="지역">
+            <input
+              value={area}
+              onChange={(event) => setArea(event.target.value)}
+              placeholder="예: 홍대"
+              className="h-14 w-full rounded-2xl border border-[#dfe3e8] bg-white px-4 text-base font-semibold text-[#111827] outline-none placeholder:text-[#a2a9b3] focus:border-[#ff6a3d]"
+            />
+          </ManualField>
+        </div>
+
+        <ManualField label="네이버예약 링크">
+          <input
+            value={naverBookingLink}
+            onChange={(event) => setNaverBookingLink(event.target.value)}
+            placeholder="https://booking.naver.com/..."
+            className={`h-14 w-full rounded-2xl border bg-white px-4 text-base font-semibold text-[#111827] outline-none placeholder:text-[#a2a9b3] focus:border-[#ff6a3d] ${
+              naverBookingLink.trim() && naverBookingLinkError
+                ? "border-[#ff4b6e]"
+                : "border-[#dfe3e8]"
+            }`}
+          />
+          {naverBookingLink.trim() && naverBookingLinkError && (
+            <p className="mt-2 text-sm font-bold text-[#ff4b6e]">
+              {naverBookingLinkError}
+            </p>
+          )}
+        </ManualField>
+
+        <ManualField label="연락처">
+          <input
+            type="tel"
+            value={contactValue}
+            onChange={(event) => setContactValue(event.target.value)}
+            placeholder="010-0000-0000"
+            className={`h-14 w-full rounded-2xl border bg-white px-4 text-base font-semibold text-[#111827] outline-none placeholder:text-[#a2a9b3] focus:border-[#ff6a3d] ${
+              contactValue.trim() && contactValueError
+                ? "border-[#ff4b6e]"
+                : "border-[#dfe3e8]"
+            }`}
+          />
+          {contactValue.trim() && contactValueError && (
+            <p className="mt-2 text-sm font-bold text-[#ff4b6e]">
+              {contactValueError}
+            </p>
+          )}
+        </ManualField>
+
+        <ManualField label="한 줄 소개">
+          <textarea
+            value={intro}
+            onChange={(event) => setIntro(event.target.value)}
+            placeholder="예: 손상은 줄이고 분위기는 확실히 바꾸는 컬러 디자인"
+            rows={3}
+            className="w-full resize-none rounded-2xl border border-[#dfe3e8] bg-white px-4 py-3 text-base font-semibold leading-6 text-[#111827] outline-none placeholder:text-[#a2a9b3] focus:border-[#ff6a3d]"
+          />
+        </ManualField>
+
+        <ManualField label="대표 시술 최대 3개">
+          <div className="grid grid-cols-2 gap-2">
+            {SERVICES.map((service) => {
+              const isSelected = selectedServices.includes(service.label);
+              const isMaxed = selectedServices.length >= 3 && !isSelected;
+
+              return (
+                <button
+                  key={service.label}
+                  type="button"
+                  onClick={() => toggleManualService(service.label)}
+                  disabled={isMaxed}
+                  className={`min-h-11 rounded-2xl border px-3 py-2 text-left text-[13px] font-bold leading-5 transition ${
+                    isSelected
+                      ? "border-[#ff6a3d] bg-[#fff1ea] text-[#111827]"
+                      : "border-[#dfe3e8] bg-white text-[#505966] hover:border-[#ffb29a]"
+                  } ${isMaxed ? "cursor-not-allowed opacity-40" : ""}`}
+                >
+                  {service.label}
+                </button>
+              );
+            })}
+          </div>
+        </ManualField>
+
+        <ManualField label="프로필 사진 1장">
+          <label className="flex min-h-28 cursor-pointer items-center gap-4 rounded-2xl border border-dashed border-[#cfd5dc] bg-[#f8f9fb] p-4">
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(event) =>
+                setProfileFile(event.target.files?.[0] ?? null)
+              }
+              className="sr-only"
+            />
+            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-[#dfe3e8] bg-white">
+              {profilePreviewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={profilePreviewUrl}
+                  alt="프로필 사진 미리보기"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-xs font-bold text-[#a2a9b3]">
+                  사진
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 text-left">
+              <p className="text-sm font-black text-[#111827]">
+                프로필 사진 선택
+              </p>
+              <p className="mt-1 truncate text-xs font-semibold text-[#838b96]">
+                {profileFile?.name ?? "JPG, PNG, WEBP"}
+              </p>
+            </div>
+          </label>
+        </ManualField>
+
+        <ManualField label="시술 사례 사진 1~4장">
+          <label className="flex min-h-20 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-[#cfd5dc] bg-[#f8f9fb] px-4 py-5 text-center">
+            <input
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(event) =>
+                setCaseFiles(Array.from(event.target.files ?? []).slice(0, 4))
+              }
+              className="sr-only"
+            />
+            <span className="text-sm font-black text-[#111827]">
+              시술 사진 첨부하기
+            </span>
+            <span className="mt-1 text-xs font-semibold text-[#838b96]">
+              {caseFiles.length > 0
+                ? `${caseFiles.length}장 선택됨`
+                : "대표 Before/After나 포트폴리오 사진"}
+            </span>
+          </label>
+          {casePreviewUrls.length > 0 && (
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              {casePreviewUrls.map(({ file, url }) => (
+                <div
+                  key={`${file.name}-${file.lastModified}`}
+                  className="aspect-square overflow-hidden rounded-xl border border-[#dfe3e8] bg-white"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={file.name} className="h-full w-full object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
+        </ManualField>
+
+        <ManualField label="대표 가격 1~4개">
+          <div className="grid gap-2">
+            {priceItems.map((item, index) => (
+              <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                <input
+                  value={item.service}
+                  onChange={(event) =>
+                    updatePriceItem(index, "service", event.target.value)
+                  }
+                  placeholder="시술명"
+                  className="h-12 min-w-0 rounded-2xl border border-[#dfe3e8] bg-white px-3 text-sm font-bold text-[#111827] outline-none placeholder:text-[#a2a9b3] focus:border-[#ff6a3d]"
+                />
+                <input
+                  value={item.price}
+                  onChange={(event) =>
+                    updatePriceItem(index, "price", event.target.value)
+                  }
+                  placeholder="가격"
+                  className="h-12 min-w-0 rounded-2xl border border-[#dfe3e8] bg-white px-3 text-sm font-bold text-[#111827] outline-none placeholder:text-[#a2a9b3] focus:border-[#ff6a3d]"
+                />
+                <button
+                  type="button"
+                  onClick={() => removePriceItem(index)}
+                  className="h-12 w-12 rounded-2xl border border-[#e5e8ec] text-sm font-black text-[#838b96]"
+                >
+                  -
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={addPriceItem}
+            disabled={priceItems.length >= 4}
+            className="mt-2 h-11 w-full rounded-2xl border border-[#ffd2c0] bg-[#fff8f4] text-sm font-black text-[#d9481f] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            가격 추가
+          </button>
+        </ManualField>
+
+        {submitError && (
+          <p className="rounded-2xl border border-[#ffd2dc] bg-[#fff4f6] px-4 py-3 text-sm font-bold leading-6 text-[#e11d48]">
+            {submitError}
+          </p>
+        )}
+      </div>
+
+      <div className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-white px-6 pb-6 pt-3 shadow-[0_-18px_40px_rgba(255,255,255,0.94)] sm:bottom-6 sm:rounded-b-[28px]">
+        <button
+          type="button"
+          onClick={submitManualProfile}
+          disabled={!canSubmit}
+          className={`h-14 w-full rounded-2xl bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] px-5 text-base font-black text-white transition ${
+            canSubmit
+              ? "hover:brightness-110"
+              : "cursor-not-allowed opacity-35"
+          }`}
+        >
+          {isSubmitting ? "초안 만드는 중..." : "프로필 초안 만들기"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ManualField({
+  children,
+  label,
+}: {
+  children: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <section className="block">
+      <span className="mb-2 block text-sm font-black text-[#252c36]">
+        {label}
+      </span>
+      {children}
+    </section>
+  );
+}
+
+function ManualProfileComplete({
+  profileId,
+  onEdit,
+  onHome,
+}: {
+  profileId: string | null;
+  onEdit: () => void;
+  onHome: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col justify-center pb-8 text-center">
+      <div className="mx-auto mb-7 flex h-16 w-16 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] text-2xl font-bold text-white">
+        ✓
+      </div>
+      <h1 className="font-title text-[34px] leading-tight tracking-normal text-[#111827]">
+        프로필 초안이
+        <br />
+        생성됐어요.
+      </h1>
+      <p className="mt-5 text-base font-medium leading-7 text-[#6a7280]">
+        기본 페이지를 만들었어요.
+        <br />
+        후기, 방문 정보, FAQ는 수정/추가에서 채울 수 있어요.
+      </p>
+      {profileId && (
+        <p className="mx-auto mt-5 max-w-full rounded-2xl bg-[#f5f6f8] px-4 py-3 text-xs font-bold text-[#838b96]">
+          ID {profileId}
+        </p>
+      )}
+      <div className="mt-8 grid gap-3">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="h-14 w-full rounded-2xl bg-[linear-gradient(135deg,#ff3f7f_0%,#ff8a00_100%)] px-5 text-base font-black text-white"
+        >
+          수정/추가하기
+        </button>
+        <button
+          type="button"
+          onClick={onHome}
+          className="h-14 w-full rounded-2xl border border-[#dfe3e8] bg-white px-5 text-base font-bold text-[#505966]"
+        >
+          확인
+        </button>
+      </div>
+    </div>
   );
 }
 

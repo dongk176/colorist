@@ -221,9 +221,59 @@ to anon, authenticated
 using (survey_submitted_at is null)
 with check (consent = true);
 
+create table if not exists colorist_pre_registration.manual_profiles (
+  id uuid primary key default gen_random_uuid(),
+  designer_name text not null,
+  salon_name text not null,
+  area text not null,
+  naver_booking_link text not null,
+  contact_value text not null,
+  intro text not null,
+  selected_services text[] not null,
+  profile_image jsonb not null,
+  service_images jsonb not null default '[]'::jsonb,
+  price_items jsonb not null default '[]'::jsonb,
+  source text not null default 'manual_profile_creator',
+  status text not null default 'draft',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  constraint manual_profiles_services_count_check
+    check (cardinality(selected_services) between 1 and 3),
+  constraint manual_profiles_status_check
+    check (status in ('draft', 'reviewing', 'published', 'archived'))
+);
+
+create index if not exists manual_profiles_created_at_idx
+  on colorist_pre_registration.manual_profiles (created_at desc);
+
+create index if not exists manual_profiles_status_idx
+  on colorist_pre_registration.manual_profiles (status);
+
+drop trigger if exists set_manual_profiles_updated_at
+  on colorist_pre_registration.manual_profiles;
+
+create trigger set_manual_profiles_updated_at
+before update on colorist_pre_registration.manual_profiles
+for each row
+execute function colorist_pre_registration.set_updated_at();
+
+alter table colorist_pre_registration.manual_profiles enable row level security;
+
+drop policy if exists "Allow manual profile inserts"
+  on colorist_pre_registration.manual_profiles;
+
+create policy "Allow manual profile inserts"
+on colorist_pre_registration.manual_profiles
+for insert
+to anon, authenticated
+with check (true);
+
 grant usage on schema colorist_pre_registration to anon, authenticated, service_role;
 grant insert, update on colorist_pre_registration.registrations to anon, authenticated;
 grant all on colorist_pre_registration.registrations to service_role;
+grant insert on colorist_pre_registration.manual_profiles to anon, authenticated;
+grant all on colorist_pre_registration.manual_profiles to service_role;
 
 drop table if exists public.colorist_pre_registrations;
 drop function if exists public.set_colorist_pre_registration_updated_at();
